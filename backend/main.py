@@ -1,10 +1,14 @@
 import os
 import psycopg2
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError
 from pydantic import BaseModel
 from datetime import datetime
-# Import our new components
 from auth import get_auth_provider, AuthProvider, UserCreate
+from jwt_utils import create_access_token
+from jwt_utils import SECRET_KEY, ALGORITHM, TokenData
+import jwt_utils
 
 # Create an instance of the FastAPI class
 app = FastAPI()
@@ -124,9 +128,38 @@ async def login_user(user: UserCreate, auth: AuthProvider = Depends(get_auth_pro
         raise HTTPException(
             status_code=401, detail="Incorrect username or password")
 
-    # In Project 3, we will generate a JWT here
-    return {"status": "success", "message": "Login successful"}
+    # Create a JWT token
+    access_token = create_access_token(
+        data={"sub": db_user['username']}
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
+
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt_utils.jwt.decode(
+            token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    # You can add a step here to fetch the user from the database
+    # if you need the full user object.
+    return token_data
+
+
+@app.get("/api/me")
+async def read_users_me(current_user: TokenData = Depends(get_current_user)):
+    return {"username": current_user.username}
 
 # Define a "route" or "endpoint"
 # @app.get tells FastAPI that this function handles GET requests
