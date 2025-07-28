@@ -1,8 +1,10 @@
 import os
 import psycopg2
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from datetime import datetime
+# Import our new components
+from auth import get_auth_provider, AuthProvider, UserCreate
 
 # Create an instance of the FastAPI class
 app = FastAPI()
@@ -30,8 +32,9 @@ async def startup_event():
         print("Attempting to connect to the database...")
         conn = get_db_connection()
         cur = conn.cursor()
-        print("Database connection successful. Creating table if it does not exist...")
+        print("Database connection successful. Creating tables if they do not exist...")
 
+        # This part is correct
         cur.execute('''
             CREATE TABLE IF NOT EXISTS messages (
                 id SERIAL PRIMARY KEY,
@@ -39,17 +42,26 @@ async def startup_event():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # --- ADD THIS PART ---
+        # Create the 'users' table
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                hashed_password TEXT NOT NULL
+            )
+        ''')
+        # --- END OF ADDED PART ---
+
         conn.commit()
         cur.close()
         conn.close()
-        print("Startup complete. Table 'messages' is ready.")
+        print("Startup complete. Tables are ready.")
 
     except Exception as e:
-        # This will print the exact error to your Render logs
         print("!!! DATABASE CONNECTION FAILED !!!")
         print(f"Error: {e}")
-        # Re-raise the exception to ensure the app still fails to start
-        # This prevents the app from running in a broken state.
         raise e
 
 # Endpoint to create a new message (handles POST requests)
@@ -90,6 +102,31 @@ async def get_messages():
     finally:
         cur.close()
         conn.close()
+
+
+# --- Authentication Endpoints ---
+
+@app.post("/api/register")
+async def register_user(user: UserCreate, auth: AuthProvider = Depends(get_auth_provider)):
+    try:
+        new_user = auth.register(user)
+        return {"status": "success", "message": f"User '{new_user['username']}' registered."}
+    except psycopg2.IntegrityError:
+        raise HTTPException(status_code=400, detail="Username already exists.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/login")
+async def login_user(user: UserCreate, auth: AuthProvider = Depends(get_auth_provider)):
+    db_user = auth.login(user)
+    if not db_user:
+        raise HTTPException(
+            status_code=401, detail="Incorrect username or password")
+
+    # In Project 3, we will generate a JWT here
+    return {"status": "success", "message": "Login successful"}
+
 
 # Define a "route" or "endpoint"
 # @app.get tells FastAPI that this function handles GET requests
