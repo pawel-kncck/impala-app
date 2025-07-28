@@ -4,9 +4,9 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from datetime import datetime
-from auth import get_auth_provider, AuthProvider, UserCreate
+from auth import get_auth_provider, AuthProvider, UserCreate, UserUpdate
 from jwt_utils import create_access_token
 from jwt_utils import SECRET_KEY, ALGORITHM, TokenData
 import jwt_utils
@@ -54,7 +54,9 @@ async def startup_event():
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
-                hashed_password TEXT NOT NULL
+                hashed_password TEXT NOT NULL,
+                first_name VARCHAR(50),
+                last_name VARCHAR(50)
             )
         ''')
         # --- END OF ADDED PART ---
@@ -173,7 +175,42 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 @app.get("/api/me")
 async def read_users_me(current_user: TokenData = Depends(get_current_user)):
-    return {"username": current_user.username}
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT id, username, first_name, last_name FROM users WHERE username = %s",
+            (current_user.username,)
+        )
+        user = cur.fetchone()
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"id": user[0], "username": user[1], "first_name": user[2], "last_name": user[3]}
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.put("/api/me/update")
+async def update_user_me(user_update: UserUpdate, current_user: TokenData = Depends(get_current_user)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE users SET first_name = %s, last_name = %s WHERE username = %s RETURNING id, username, first_name, last_name",
+            (user_update.first_name, user_update.last_name, current_user.username)
+        )
+        updated_user = cur.fetchone()
+        conn.commit()
+        if updated_user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"id": updated_user[0], "username": updated_user[1], "first_name": updated_user[2], "last_name": updated_user[3]}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
 
 # Define a "route" or "endpoint"
 # @app.get tells FastAPI that this function handles GET requests

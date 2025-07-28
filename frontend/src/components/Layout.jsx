@@ -3,10 +3,10 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import './Layout.css';
 
-function Layout() {
+function Layout({ user, logout }) {
   return (
     <div className="app-layout">
-      <Sidebar />
+      <Sidebar user={user} logout={logout} />
       <main className="main-content">
         <Outlet />
       </main>

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
+from typing import Optional
 from passlib.context import CryptContext
 import psycopg2
 import os
@@ -10,6 +11,11 @@ import os
 class UserCreate(BaseModel):
     username: str
     password: str
+
+
+class UserUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
 
 # --- Password Hashing (Keep this for the local provider) ---
 
