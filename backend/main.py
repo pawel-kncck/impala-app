@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from pydantic import BaseModel
+from typing import List
 from datetime import datetime
 from auth import get_auth_provider, AuthProvider, UserCreate
 from jwt_utils import create_access_token
@@ -54,6 +55,19 @@ async def startup_event():
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
                 hashed_password TEXT NOT NULL
+            )
+        ''')
+        # --- END OF ADDED PART ---
+
+        # Create the 'projects' table
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS projects (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                description TEXT,
+                user_id INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
         # --- END OF ADDED PART ---
@@ -170,3 +184,71 @@ async def read_users_me(current_user: TokenData = Depends(get_current_user)):
 async def hello_world():
     # FastAPI automatically converts Python dictionaries to JSON format
     return {"message": "Hello from you live FastAPI backend!"}
+
+# Pydantic model for creating a project
+
+
+class ProjectCreate(BaseModel):
+    name: str
+    description: str | None = None
+
+# Pydantic model for retrieving a project
+
+
+class Project(ProjectCreate):
+    id: int
+    user_id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+@app.post("/api/projects", response_model=Project)
+async def create_project(project: ProjectCreate, current_user: TokenData = Depends(get_current_user)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Get user_id from username
+        cur.execute("SELECT id FROM users WHERE username = %s",
+                    (current_user.username,))
+        user_id = cur.fetchone()[0]
+
+        # Insert a new record into the projects table
+        cur.execute(
+            "INSERT INTO projects (name, description, user_id) VALUES (%s, %s, %s) RETURNING id, name, description, user_id, created_at",
+            (project.name, project.description, user_id)
+        )
+        new_project = cur.fetchone()
+        conn.commit()
+        return {"id": new_project[0], "name": new_project[1], "description": new_project[2], "user_id": new_project[3], "created_at": new_project[4]}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.get("/api/projects", response_model=List[Project])
+async def get_projects(current_user: TokenData = Depends(get_current_user)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Get user_id from username
+        cur.execute("SELECT id FROM users WHERE username = %s",
+                    (current_user.username,))
+        user_id = cur.fetchone()[0]
+
+        # Select all projects for the current user
+        cur.execute(
+            "SELECT id, name, description, user_id, created_at FROM projects WHERE user_id = %s ORDER BY created_at DESC",
+            (user_id,)
+        )
+        projects = cur.fetchall()
+        projects_list = [{"id": p[0], "name": p[1], "description": p[2],
+                          "user_id": p[3], "created_at": p[4]} for p in projects]
+        return projects_list
+    finally:
+        cur.close()
+        conn.close()
