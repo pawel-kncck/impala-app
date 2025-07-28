@@ -1,0 +1,18 @@
+.sidebar {
+  width: 250px;
+  background-color: #f4f4f4;
+  height: 100vh;
+  padding: 20px;
+  color: #333;
+}
+
+.sidebar-section {
+  margin-bottom: 20px;
+}
+
+.sidebar-title {
+  font-size: 1.2em;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 5px;
+}
