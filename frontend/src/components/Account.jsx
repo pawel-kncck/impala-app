@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import './Account.css';
 
 function Account() {
   const [user, setUser] = useState(null);
@@ -48,21 +49,23 @@ function Account() {
       <p>
         <strong>Username:</strong> {user.username}
       </p>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-          placeholder="First Name"
-        />
-        <input
-          type="text"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
-          placeholder="Last Name"
-        />
-        <button type="submit">Update Profile</button>
-      </form>
+      <div className="account-container">
+        <form onSubmit={handleSubmit} className="account-form">
+          <input
+            type="text"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="First Name"
+          />
+          <input
+            type="text"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder="Last Name"
+          />
+          <button type="submit">Update Profile</button>
+        </form>
+      </div>
     </div>
   );
 }
