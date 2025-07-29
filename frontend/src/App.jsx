@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+import {
+  Routes,
+  Route,
+  Link,
+  useNavigate,
+  useLocation,
+} from 'react-router-dom';
 import axios from 'axios';
 import Register from './components/Register';
 import Login from './components/Login';
 import Layout from './components/Layout';
 import Account from './components/Account';
 import ProjectDetail from './components/ProjectDetail';
+import NewProject from './components/NewProject'; // Make sure this is imported
 import './App.css';
 
 function Home() {
@@ -20,12 +27,25 @@ function Home() {
 function App() {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const handleLogin = (token) => {
+  // This effect will run when the user state changes
+  useEffect(() => {
+    // If we have a user and they are on the login/register page,
+    // redirect them to the homepage.
+    if (
+      user &&
+      (location.pathname === '/login' || location.pathname === '/register')
+    ) {
+      navigate('/');
+    }
+  }, [user, navigate, location.pathname]);
+
+  const handleLogin = async (token) => {
     localStorage.setItem('token', token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    fetchUser();
-    navigate('/');
+    await fetchUser();
+    // The useEffect above will now handle the redirect.
   };
 
   const handleLogout = () => {
@@ -36,17 +56,19 @@ function App() {
   };
 
   const fetchUser = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setUser(null);
+      return;
+    }
     try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const response = await axios.get('/api/me');
-        setUser(response.data);
-      }
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      const response = await axios.get('/api/me');
+      setUser(response.data);
     } catch (error) {
       console.error('Failed to fetch user on load:', error);
-      // If token is invalid, clear it
       localStorage.removeItem('token');
+      setUser(null); // Explicitly set user to null on error
     }
   };
 
@@ -73,17 +95,16 @@ function App() {
         )}
       </nav>
       <Routes>
-        <Route element={<Layout user={user} logout={handleLogout} />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/account" element={<Account />} />
-        </Route>
-        <Route path="/register" element={<Register />} />
+        {/* Public Routes */}
         <Route path="/login" element={<Login onLogin={handleLogin} />} />
+        <Route path="/register" element={<Register />} />
+
+        {/* Protected Routes */}
         <Route element={<Layout user={user} logout={handleLogout} />}>
           <Route path="/" element={<Home />} />
           <Route path="/account" element={<Account />} />
-          {/* Add this new route */}
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
+          <Route path="/new-project" element={<NewProject />} />
         </Route>
       </Routes>
     </div>

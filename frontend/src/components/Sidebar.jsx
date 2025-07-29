@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Sidebar.css';
 
 function Sidebar({ user, logout }) {
   const [projects, setProjects] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -23,6 +24,10 @@ function Sidebar({ user, logout }) {
 
     fetchProjects();
   }, [user]); // Re-run when user object changes
+
+  const handleNewProject = () => {
+    navigate('/new-project');
+  };
 
   return (
     <div className="sidebar">
@@ -50,7 +55,7 @@ function Sidebar({ user, logout }) {
             </li>
           ))}
         </ul>
-        {/* We'll add a "New Project" button here in a later project */}
+        <button onClick={handleNewProject}>New Project</button>
       </div>
       <div className="sidebar-section">
         <h3 className="sidebar-title">Settings</h3>
