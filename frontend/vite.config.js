@@ -5,16 +5,18 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: '0.0.0.0', // Allow connections from outside the container
-    port: 5173, // Explicitly set the port
+    host: '0.0.0.0', // This is important for Docker
+    port: 5173,
+    strictPort: true,
+    watch: {
+      usePolling: true, // This helps with file watching in Docker
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:5001',
+        target: 'http://backend:5000', // Use the Docker service name 'backend'
         changeOrigin: true,
+        secure: false,
       },
-    },
-    watch: {
-      usePolling: true, // This is needed for HMR to work in Docker
     },
   },
 });
