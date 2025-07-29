@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import './ProjectDetail.css'; // Import the new CSS file
+import FileUpload from './FileUpload'; // Import the FileUpload component
 
 function ProjectDetail() {
   const { projectId } = useParams();
@@ -9,8 +10,22 @@ function ProjectDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('data'); // 'data' or 'canvases'
+  const [dataSources, setDataSources] = useState([]); // State for data sources
 
-  // ... (keep the useEffect for fetching the project)
+  const fetchDataSource = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `/api/projects/${projectId}/data-sources`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setDataSources(response.data);
+    } catch (err) {
+      console.error('Failed to fetch data sources:', err);
+    }
+  };
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -33,9 +48,8 @@ function ProjectDetail() {
     };
 
     fetchProject();
+    fetchDataSource(); // Fetch data sources on mount
   }, [projectId]);
-
-  // ... (keep the loading, error, and not found checks)
 
   if (loading) return <div>Loading project...</div>;
   if (error) return <div style={{ color: 'red' }}>{error}</div>;
@@ -64,8 +78,14 @@ function ProjectDetail() {
       <div className="tab-content">
         {activeTab === 'data' && (
           <div>
+            <FileUpload projectId={projectId} onUpload={fetchDataSource} />
+            <hr />
             <h3>Data Sources</h3>
-            <p>Placeholder for data upload feature and list of data sources.</p>
+            <ul>
+              {dataSources.map((ds) => (
+                <li key={ds.id}>{ds.file_name}</li>
+              ))}
+            </ul>
           </div>
         )}
         {activeTab === 'canvases' && (

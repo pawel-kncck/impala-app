@@ -10,6 +10,9 @@ from auth import get_auth_provider, AuthProvider, UserCreate, UserUpdate
 from jwt_utils import create_access_token
 from jwt_utils import SECRET_KEY, ALGORITHM, TokenData
 import jwt_utils
+from fastapi import UploadFile, File
+import pandas as pd
+import shutil
 
 # Create an instance of the FastAPI class
 app = FastAPI()
@@ -73,6 +76,18 @@ async def startup_event():
             )
         ''')
         # --- END OF ADDED PART ---
+
+        # Create the 'data_sources' table
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS data_sources (
+                id SERIAL PRIMARY KEY,
+                project_id INTEGER NOT NULL,
+                file_name VARCHAR(255) NOT NULL,
+                file_path TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects (id)
+            )
+        ''')
 
         conn.commit()
         cur.close()
@@ -241,6 +256,16 @@ class Project(ProjectCreate):
         orm_mode = True
 
 
+class DataSource(BaseModel):
+    id: int
+    project_id: int
+    file_name: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
 @app.post("/api/projects", response_model=Project)
 async def create_project(project: ProjectCreate, current_user: TokenData = Depends(get_current_user)):
     conn = get_db_connection()
@@ -286,6 +311,64 @@ async def get_projects(current_user: TokenData = Depends(get_current_user)):
         projects_list = [{"id": p[0], "name": p[1], "description": p[2],
                           "user_id": p[3], "created_at": p[4]} for p in projects]
         return projects_list
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.post("/api/projects/{project_id}/upload-csv")
+async def upload_csv(project_id: int, file: UploadFile = File(...), current_user: TokenData = Depends(get_current_user)):
+    # Ensure the uploads directory exists
+    upload_dir = "uploads"
+    os.makedirs(upload_dir, exist_ok=True)
+
+    # Basic validation of the CSV file
+    try:
+        # Read the file in chunks to avoid memory issues with large files
+        df = pd.read_csv(file.file)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid CSV file: {e}")
+    finally:
+        # Reset the file pointer to the beginning
+        file.file.seek(0)
+
+    # Save the uploaded file
+    file_path = os.path.join(upload_dir, file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Create a record in the data_sources table
+        cur.execute(
+            "INSERT INTO data_sources (project_id, file_name, file_path) VALUES (%s, %s, %s) RETURNING id, project_id, file_name, created_at",
+            (project_id, file.filename, file_path)
+        )
+        new_data_source = cur.fetchone()
+        conn.commit()
+        return {"id": new_data_source[0], "project_id": new_data_source[1], "file_name": new_data_source[2], "created_at": new_data_source[3]}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.get("/api/projects/{project_id}/data-sources", response_model=List[DataSource])
+async def get_data_sources(project_id: int, current_user: TokenData = Depends(get_current_user)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT id, project_id, file_name, created_at FROM data_sources WHERE project_id = %s ORDER BY created_at DESC",
+            (project_id,)
+        )
+        data_sources = cur.fetchall()
+        data_sources_list = [{"id": ds[0], "project_id": ds[1],
+                              "file_name": ds[2], "created_at": ds[3]} for ds in data_sources]
+        return data_sources_list
     finally:
         cur.close()
         conn.close()
