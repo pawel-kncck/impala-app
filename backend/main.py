@@ -13,6 +13,9 @@ import jwt_utils
 from fastapi import UploadFile, File
 import pandas as pd
 import shutil
+from database_mongo import get_database
+from bson import ObjectId
+from pymongo.errors import PyMongoError
 
 # Create an instance of the FastAPI class
 app = FastAPI()
@@ -265,6 +268,24 @@ class DataSource(BaseModel):
     class Config:
         orm_mode = True
 
+# Pydantic model for creating a canvas
+
+
+class CanvasCreate(BaseModel):
+    name: str
+    content: dict = {}
+
+# Pydantic model for retrieving a canvas
+
+
+class Canvas(CanvasCreate):
+    id: str
+    project_id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
 
 @app.post("/api/projects", response_model=Project)
 async def create_project(project: ProjectCreate, current_user: TokenData = Depends(get_current_user)):
@@ -372,3 +393,80 @@ async def get_data_sources(project_id: int, current_user: TokenData = Depends(ge
     finally:
         cur.close()
         conn.close()
+
+
+@app.post("/api/projects/{project_id}/canvases", response_model=Canvas)
+async def create_canvas(project_id: int, canvas: CanvasCreate, current_user: TokenData = Depends(get_current_user)):
+    db = get_database()
+    try:
+        # You might want to verify that the project belongs to the current user first
+        # (omitted for brevity)
+
+        canvas_doc = {
+            "project_id": project_id,
+            "name": canvas.name,
+            "content": canvas.content,
+            "created_at": datetime.now()
+        }
+        result = db.canvases.insert_one(canvas_doc)
+        created_canvas = db.canvases.find_one({"_id": result.inserted_id})
+
+        # Convert ObjectId to string for the response model
+        created_canvas["id"] = str(created_canvas["_id"])
+
+        return created_canvas
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/projects/{project_id}/canvases", response_model=List[Canvas])
+async def get_canvases(project_id: int, current_user: TokenData = Depends(get_current_user)):
+    db = get_database()
+    try:
+        canvases = []
+        for canvas in db.canvases.find({"project_id": project_id}):
+            canvas["id"] = str(canvas["_id"])
+            canvases.append(canvas)
+        return canvases
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/canvases/{canvas_id}", response_model=Canvas)
+async def update_canvas(canvas_id: str, canvas_update: CanvasCreate, current_user: TokenData = Depends(get_current_user)):
+    db = get_database()
+    try:
+        updated_doc = {
+            "name": canvas_update.name,
+            "content": canvas_update.content,
+        }
+        result = db.canvases.update_one(
+            {"_id": ObjectId(canvas_id)},
+            {"$set": updated_doc}
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Canvas not found")
+
+        updated_canvas = db.canvases.find_one({"_id": ObjectId(canvas_id)})
+        updated_canvas["id"] = str(updated_canvas["_id"])
+        return updated_canvas
+
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid canvas ID")
+
+
+@app.delete("/api/canvases/{canvas_id}", status_code=204)
+async def delete_canvas(canvas_id: str, current_user: TokenData = Depends(get_current_user)):
+    db = get_database()
+    try:
+        result = db.canvases.delete_one({"_id": ObjectId(canvas_id)})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Canvas not found")
+        return
+    except PyMongoError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid canvas ID")

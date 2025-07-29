@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import './ProjectDetail.css'; // Import the new CSS file
 import FileUpload from './FileUpload'; // Import the FileUpload component
+import NewCanvas from './NewCanvas';
 
 function ProjectDetail() {
   const { projectId } = useParams();
@@ -11,6 +12,19 @@ function ProjectDetail() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('data'); // 'data' or 'canvases'
   const [dataSources, setDataSources] = useState([]); // State for data sources
+  const [canvases, setCanvases] = useState([]); // State for canvases
+
+  const fetchCanvases = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`/api/projects/${projectId}/canvases`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCanvases(response.data);
+    } catch (err) {
+      console.error('Failed to fetch canvases:', err);
+    }
+  };
 
   const fetchDataSource = async () => {
     try {
@@ -49,7 +63,22 @@ function ProjectDetail() {
 
     fetchProject();
     fetchDataSource(); // Fetch data sources on mount
+    fetchCanvases(); // Fetch canvases on mount
   }, [projectId]);
+
+  const handleDeleteCanvas = async (canvasId) => {
+    if (window.confirm('Are you sure you want to delete this canvas?')) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`/api/canvases/${canvasId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        fetchCanvases(); // Refresh the list
+      } catch (error) {
+        console.error('Failed to delete canvas:', error);
+      }
+    }
+  };
 
   if (loading) return <div>Loading project...</div>;
   if (error) return <div style={{ color: 'red' }}>{error}</div>;
@@ -90,9 +119,22 @@ function ProjectDetail() {
         )}
         {activeTab === 'canvases' && (
           <div>
+            <NewCanvas projectId={projectId} onCanvasCreated={fetchCanvases} />
+            <hr />
             <h3>Canvases</h3>
-            <p>Placeholder for the list of canvases.</p>
-            <button>New Canvas</button>
+            <ul>
+              {canvases.map((canvas) => (
+                <li key={canvas.id}>
+                  {canvas.name}
+                  <button
+                    onClick={() => handleDeleteCanvas(canvas.id)}
+                    style={{ marginLeft: '10px' }}
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>
