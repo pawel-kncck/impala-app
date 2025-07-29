@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   frontend:
     build: ./frontend
@@ -7,25 +5,35 @@ services:
       - '3000:80'
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
+    networks: # Add this
+      - impala-net
 
   backend:
     build: ./backend
+    restart: always # Add this
     ports:
       - '5001:5000'
     environment:
       DATABASE_URL: 'postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/mydatabase'
-      # Add this line for the MongoDB connection string
       MONGO_DATABASE_URL: 'mongodb://mongo:27017/'
     depends_on:
       db:
         condition: service_healthy
-      # Add this to make the backend depend on mongo
       mongo:
         condition: service_started
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:5000/api/hello']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: # Add this
+      - impala-net
 
   db:
     image: postgres:13-alpine
+    restart: always # Add this
     environment:
       POSTGRES_DB: mydatabase
       POSTGRES_USER: ${POSTGRES_USER}
@@ -37,16 +45,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks: # Add this
+      - impala-net
 
-  # Add this entire block for the new MongoDB service
   mongo:
-    image: mongo:latest # Use the official MongoDB image
+    image: mongo:latest
+    restart: always # Add this
     ports:
-      - '27017:27017' # Map the port to your host machine for optional access
+      - '27017:27017'
     volumes:
-      - mongo_data:/data/db # Persist MongoDB data
+      - mongo_data:/data/db
+    networks: # Add this
+      - impala-net
 
 volumes:
   db_data:
-  # Add a new volume for MongoDB
   mongo_data:
+
+# Define the network at the top level
+networks:
+  impala-net:
+    driver: bridge

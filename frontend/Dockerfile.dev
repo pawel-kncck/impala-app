@@ -1,0 +1,16 @@
+# Use an official Node runtime as a parent image
+FROM node:20-alpine
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy package.json and install dependencies
+# This is done first to leverage Docker's layer caching
+COPY package.json package-lock.json ./
+RUN npm install
+
+# The rest of the source code will be mounted via a volume
+# Expose the port the app runs on
+EXPOSE 5173
+
+# The command to run the dev server will be in docker-compose
