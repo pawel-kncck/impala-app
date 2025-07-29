@@ -5,6 +5,7 @@ import Register from './components/Register';
 import Login from './components/Login';
 import Layout from './components/Layout';
 import Account from './components/Account';
+import ProjectDetail from './components/ProjectDetail';
 import './App.css';
 
 function Home() {
@@ -78,6 +79,12 @@ function App() {
         </Route>
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login onLogin={handleLogin} />} />
+        <Route element={<Layout user={user} logout={handleLogout} />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/account" element={<Account />} />
+          {/* Add this new route */}
+          <Route path="/projects/:projectId" element={<ProjectDetail />} />
+        </Route>
       </Routes>
     </div>
   );

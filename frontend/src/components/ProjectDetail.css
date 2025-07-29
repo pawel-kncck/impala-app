@@ -1,0 +1,28 @@
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 10px 20px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: none;
+}
+
+.tab.active {
+  border-color: #ccc;
+  border-bottom: 1px solid white;
+  background-color: white;
+  color: #213547; /* Match the light mode root color */
+  border-radius: 5px 5px 0 0;
+  position: relative;
+  top: 1px;
+}
+
+.tab-content {
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-top: none;
+}

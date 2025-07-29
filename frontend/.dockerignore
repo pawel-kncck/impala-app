@@ -1,0 +1,15 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+npm-debug.log
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/
+.idea/
+.DS_Store
